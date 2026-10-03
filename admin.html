@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Guest List | Jess & Ara 12.19.2026</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="nav"><div class="nav-inner">
+  <div class="brand"><em>JA</em> Admin <span style="font-size:14px">• Guest List</span></div>
+  <nav><a href="index.html">Invitation</a><a href="admin.html">Admin</a></nav>
+</div></header>
+<div class="wrap">
+<section class="block">
+  <div class="card" id="loginCard">
+    <div class="kicker">Jess & Ara • Admin</div>
+    <h2 class="rs" style="font-size:40px">Guest list</h2>
+    <!-- <p class="muted">Demo password: <b>admin123</b></p> -->
+    <label>Password</label>
+    <div class="row"><input id="pw" type="password" placeholder="Enter password" style="max-width:280px"/><button class="btn" id="loginBtn">Unlock</button></div>
+    <div id="loginMsg"></div>
+  </div>
+
+  <div id="dash" style="display:none">
+    <div class="stats" id="stats"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="toolbar">
+        <input id="q" placeholder="Search name / code / table..." />
+        <select id="f"><option value="">All status</option><option value="attending">Attending</option><option value="declined">Declined</option><option value="pending">Pending</option></select>
+        <button class="btn small" id="addBtn">+ Add Guest</button>
+      </div>
+      <div style="overflow:auto"><table>
+        <thead><tr><th>Code</th><th>Name</th><th>Pax</th><th>Seats</th><th>Status</th><th>Companions</th><th>Table</th><th>Action</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+      <p class="muted" style="font-size:13px">Guests unlock with their invitation <b>code</b> (case doesn't matter). Every row needs a unique code — names may repeat, codes may not.</p>
+    </div>
+  </div>
+
+  <!-- Add / Edit guest modal -->
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(58,13,20,.55);z-index:50;align-items:center;justify-content:center;padding:16px">
+    <div class="card" style="width:min(480px,94vw);max-height:90vh;overflow:auto">
+      <div class="kicker" id="mTitle">Add guest</div>
+      <label>Invitation Code (unique — guest types this)</label>
+      <div class="row">
+        <input id="mCode" placeholder="e.g. CF4K7P" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;flex:1" />
+        <button class="btn small ghost" id="mGenCode" type="button" title="Generate from initials + pax">Generate</button>
+      </div>
+      <label>Guest / Family Name</label>
+      <input id="mName" placeholder="Reyes Family" />
+      <div class="row">
+        <div style="flex:1;min-width:100px"><label>Max seats (pax)</label><input id="mPax" type="number" min="1" max="20" value="2" /></div>
+        <div style="flex:1;min-width:100px"><label>Side</label><select id="mSide"><option>Bride</option><option>Groom</option><option>Both</option></select></div>
+        <div style="flex:1;min-width:100px"><label>Table</label><input id="mTable" placeholder="T-09" /></div>
+      </div>
+      <div class="row">
+        <div style="flex:1;min-width:100px"><label>Status</label><select id="mStatus"><option value="pending">Pending</option><option value="attending">Attending</option><option value="declined">Declined</option></select></div>
+        <div style="flex:2;min-width:160px"><label>Companions (separate with ; — 1 or more)</label><input id="mCompanions" placeholder="Juan; Maria" /></div>
+      </div>
+      <div class="row">
+        <div style="flex:1;min-width:140px"><label>Contact</label><input id="mContact" placeholder="0917-xxx-xxxx" /></div>
+        <div style="flex:2;min-width:160px"><label>Message</label><input id="mMessage" placeholder="Message to couple" /></div>
+      </div>
+      <div id="mMsg"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="mSave">Save Guest</button>
+        <button class="btn ghost" id="mCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+<script src="data.js?v=20261003h"></script>
+<script src="admin.js?v=20261003h"></script>
+</body>
+</html>
