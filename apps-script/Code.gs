@@ -207,6 +207,12 @@ function doPost(e){
       let r = body.code ? findRow_(sh, map, body.code) : -1;
       if(r < 0 && body.name) r = findRowByName_(sh, map, body.name);
       if(r < 0) return out_({ ok:false, error:"code not on list" });
+      // One-time codes: once STATUS leaves Pending, the code is spent.
+      // Admins can re-open a code via upsert with status "pending".
+      if(map.STATUS >= 0){
+        const cur = readStatus_(sh.getRange(r, map.STATUS + 1).getDisplayValue());
+        if(cur !== "pending") return out_({ ok:false, error:"code already used" });
+      }
       const st = readStatus_(body.status);
       if(st === "declined"){
         setCell_(sh, r, map, "STATUS", "Declined");

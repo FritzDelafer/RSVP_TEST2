@@ -24,6 +24,9 @@ header.nav{position:sticky;top:0;z-index:20;background:rgba(253,249,244,.94);bac
 .nav-inner{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;max-width:1120px;margin:0 auto}
 .brand{font-family:"Cormorant Garamond",serif;font-size:26px;letter-spacing:2px;color:var(--ink)}
 .brand em{font-family:"Pinyon Script",cursive;font-size:30px;color:var(--wine)}
+.brand-logo{height:48px;width:auto;display:block;object-fit:contain}
+.gift-caption{font-size:14px;line-height:1.7}
+.gift-caption strong{color:var(--wine);font-weight:700}
 nav a{margin-left:14px;text-decoration:none;color:var(--mauve);font-weight:500;font-size:13px;letter-spacing:1.5px}
 nav a:hover,nav a.active{color:var(--wine)}
 nav a.btn{color:#fff}

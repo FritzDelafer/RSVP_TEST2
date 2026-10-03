@@ -60,7 +60,14 @@ async function lookup(){
     msg.innerHTML = `<div class="notice">Finding your invitation…</div>`;
     try{
       const res = await window.gasGet({ action: "lookup", code: raw.trim() });
-      if(res && res.ok && res.guest){ msg.innerHTML=""; unlock(res.guest); return; }
+      if(res && res.ok && res.guest){
+        // One-time codes: once status leaves "pending", the code is spent.
+        if(String((res.guest.status || "pending")).toLowerCase() !== "pending"){
+          msg.innerHTML = `<div class="error">This code (<b>${String(res.guest.code || raw.trim()).toUpperCase()}</b>) has already been used — RSVP is closed for it. If you need changes, please message Jess &amp; Ara.</div>`;
+          return;
+        }
+        msg.innerHTML=""; unlock(res.guest); return;
+      }
       msg.innerHTML = `<div class="error">Sorry, we can't find code "<b>${raw.trim().toUpperCase()}</b>". Check the code on your invitation, or message Jess & Ara.</div>`;
       return;
     }catch(err){
@@ -73,7 +80,14 @@ async function lookup(){
 
   // exact code match only (no suggestions — codes don't enumerate names)
   const exact = guests.find(x=>normCode(x.code)===q);
-  if(exact){ msg.innerHTML=""; unlock(exact); return; }
+  if(exact){
+    // One-time codes: once status leaves "pending", the code is spent.
+    if(String(exact.status || "pending").toLowerCase() !== "pending"){
+      msg.innerHTML = `<div class="error">This code (<b>${String(exact.code).toUpperCase()}</b>) has already been used — RSVP is closed for it. If you need changes, please message Jess &amp; Ara.</div>`;
+      return;
+    }
+    msg.innerHTML=""; unlock(exact); return;
+  }
 
   msg.innerHTML = `<div class="error">Sorry, we can't find code "<b>${raw.trim().toUpperCase()}</b>". Check the code on your invitation, or message Jess & Ara.</div>`;
 }
@@ -164,11 +178,10 @@ function showDone(){
   document.getElementById("step-done").style.display="block";
   const used = seatsUsed(current);
   document.getElementById("doneBox").innerHTML =
-    `<b>Salamat, ${current.name}!</b><br/>You confirmed <b>${used} / ${current.pax}</b> seat(s). Opening your invitation…<br/><span class="muted">If nothing happens, tap “Continue to Invitation”.</span>`;
+    `<b>Salamat, ${current.name}!</b><br/>You confirmed <b>${used} / ${current.pax}</b> seat(s). Your code is now closed — tap below to open your invitation.<br/><span class="muted">If nothing happens, tap “Continue to Invitation”.</span>`;
   document.getElementById("formMsg").innerHTML="";
   document.getElementById("rsvp").scrollIntoView({behavior:"smooth"});
-  // hand off to the Canva invitation site
-  setTimeout(()=>{ window.location.href = CANVA_URL; }, 2200);
+  // No auto-redirect: guest taps the Canva button above the venue details.
 }
 function showDeclined(){
   document.getElementById("step-form").style.display="none";
@@ -181,6 +194,11 @@ function showDeclined(){
 }
 document.getElementById("submitBtn").addEventListener("click", async ()=>{
   const fmsg = document.getElementById("formMsg");
+  // One-time codes: never submit twice for the same code.
+  if(current && String(current.status || "pending").toLowerCase() !== "pending"){
+    fmsg.innerHTML = `<div class="error">This code has already been used — RSVP is closed for it. If you need changes, please message Jess &amp; Ara.</div>`;
+    return;
+  }
   const attend = document.querySelector('input[name="attend"]:checked').value;
   const contact = document.getElementById("contact").value.trim();
   const message = document.getElementById("message").value.trim();
@@ -228,6 +246,11 @@ document.getElementById("submitBtn").addEventListener("click", async ()=>{
   guests = loadGuests();
   const idx = findByCode(guests, current.code);
   if(idx<0) return;
+  // One-time codes (local mode): a non-pending row is spent.
+  if(String(guests[idx].status || "pending").toLowerCase() !== "pending"){
+    fmsg.innerHTML = `<div class="error">This code has already been used — RSVP is closed for it. If you need changes, please message Jess &amp; Ara.</div>`;
+    return;
+  }
   if(attend==="no"){
     guests[idx] = {...guests[idx], status:"declined", companions:[],
       contact,
