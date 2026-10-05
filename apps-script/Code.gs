@@ -153,11 +153,18 @@ function setup(){
 }
 
 // Code-only lookup: exact match, no suggestions (codes must not enumerate names).
+// Fast path: reads only the CODE column to find the row, then a single row —
+// NOT the whole sheet like listGuests_() does.
 function lookupByCode_(code){
   const q = normCode_(code);
   if(!q) return null;
-  const all = listGuests_();
-  return all.find(g => normCode_(g.code) === q) || null;
+  const sh = sheet_();
+  const map = colMap_(sh);
+  const r = findRow_(sh, map, q);
+  if(r < 0) return null;
+  const width = Math.max(sh.getLastColumn(), HEADERS.length);
+  const vals = sh.getRange(r, 1, 1, width).getDisplayValues()[0];
+  return rowToGuest_(map, vals);
 }
 
 function doGet(e){
@@ -207,26 +214,28 @@ function doPost(e){
       let r = body.code ? findRow_(sh, map, body.code) : -1;
       if(r < 0 && body.name) r = findRowByName_(sh, map, body.name);
       if(r < 0) return out_({ ok:false, error:"code not on list" });
+      // Single row read covers the spent-code check AND preserves untouched
+      // columns, so the update below is one batched setValues (not N setValue calls).
+      const width = Math.max(sh.getLastColumn(), HEADERS.length);
+      const row = sh.getRange(r, 1, 1, width).getDisplayValues()[0];
       // One-time codes: once STATUS leaves Pending, the code is spent.
       // Admins can re-open a code via upsert with status "pending".
-      if(map.STATUS >= 0){
-        const cur = readStatus_(sh.getRange(r, map.STATUS + 1).getDisplayValue());
-        if(cur !== "pending") return out_({ ok:false, error:"code already used" });
-      }
+      const cur = readStatus_(map.STATUS >= 0 ? row[map.STATUS] : "");
+      if(cur !== "pending") return out_({ ok:false, error:"code already used" });
       const st = readStatus_(body.status);
       if(st === "declined"){
-        setCell_(sh, r, map, "STATUS", "Declined");
-        setCell_(sh, r, map, "COMPANIONS", "");
+        row[map.STATUS] = "Declined";
+        row[map.COMPANIONS] = "";
       } else if(st === "attending"){
-        const comps = parseCompanions_(body.companions);
-        setCell_(sh, r, map, "STATUS", "Attending");
-        setCell_(sh, r, map, "COMPANIONS", joinCompanions_(comps));
+        row[map.STATUS] = "Attending";
+        row[map.COMPANIONS] = joinCompanions_(parseCompanions_(body.companions));
       } else {
-        setCell_(sh, r, map, "STATUS", "Pending");
-        setCell_(sh, r, map, "COMPANIONS", joinCompanions_(parseCompanions_(body.companions)));
+        row[map.STATUS] = "Pending";
+        row[map.COMPANIONS] = joinCompanions_(parseCompanions_(body.companions));
       }
-      setCell_(sh, r, map, "CONTACT", String(body.contact || "").trim());
-      setCell_(sh, r, map, "MESSAGE", String(body.message || "").trim());
+      row[map.CONTACT] = String(body.contact || "").trim();
+      row[map.MESSAGE] = String(body.message || "").trim();
+      sh.getRange(r, 1, 1, width).setValues([row]);
       SpreadsheetApp.flush();
       return out_({ ok:true });
     }
@@ -261,8 +270,11 @@ function doPost(e){
       if(!vals.CODE) return out_({ ok:false, error:"code required" });
       if(!vals.NAME) return out_({ ok:false, error:"name required" });
       if(r > 0){
-        // write per-column by name — safe even if sheet order differs
-        HEADERS.forEach(h => setCell_(sh, r, map, h, vals[h]));
+        // One batched write by column position — safe even if sheet order differs.
+        const width = Math.max(sh.getLastColumn(), HEADERS.length);
+        const row = sh.getRange(r, 1, 1, width).getDisplayValues()[0];
+        HEADERS.forEach(h => { if(map[h] >= 0) row[map[h]] = vals[h]; });
+        sh.getRange(r, 1, 1, width).setValues([row]);
       } else {
         // append in canonical order
         sh.appendRow(HEADERS.map(h => vals[h]));

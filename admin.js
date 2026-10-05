@@ -63,10 +63,27 @@ document.getElementById("loginBtn").onclick = ()=>{
 async function showDash(){
   document.getElementById("loginCard").style.display="none";
   document.getElementById("dash").style.display="block";
+  // Instant paint from the local copy first — the Sheet revalidate happens
+  // in the background, so the dashboard never sits on an empty "Loading…" table.
+  try{ cache = loadGuests(); }catch{}
+  render();
   await refresh();
 }
-document.getElementById("q").oninput=render;
-document.getElementById("f").onchange=render;
+// Debounced search/filter: render() rebuilds the whole table, so don't run it
+// on every keystroke — wait for a pause, and reset the row cap on new queries.
+let searchTimer = null;
+function queueRender(resetLimit){
+  if(resetLimit) renderLimit = 200;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 120);
+}
+document.getElementById("q").oninput=()=>queueRender(true);
+document.getElementById("f").onchange=()=>queueRender(true);
+
+// Cap rendered rows: building DOM for hundreds of rows on every keystroke is
+// the main admin-page jank. Stats still cover the full list; only rows are capped.
+let renderLimit = 200;
+function showAllRows(){ renderLimit = Infinity; render(); }
 
 async function refresh(){
   loading = true; gasError = ""; render();
@@ -134,14 +151,17 @@ function render(){
     rows.innerHTML = `<tr><td colspan="8" class="muted">Loading guest list from Google Sheet…</td></tr>`;
     return;
   }
-  guests.filter(g=>{
+  const filtered = guests.filter(g=>{
     if(f==="attending" && !isAttending(g)) return false;
     if(f==="confirmed" && !isAttending(g)) return false; // legacy filter value
     if(f==="declined" && !isDeclined(g)) return false;
     if(f==="pending" && (isAttending(g)||isDeclined(g))) return false;
     if(q && !(normCode(g.code).includes(qc)||normName(g.name).includes(q)||normName(g.table||"").includes(q))) return false;
     return true;
-  }).forEach(g=>{
+  });
+  const shown = filtered.slice(0, renderLimit);
+  const frag = document.createDocumentFragment();
+  shown.forEach(g=>{
     const tr=document.createElement("tr");
     tr.innerHTML=`<td><b style="font-family:monospace;white-space:nowrap">${esc(g.code)}</b></td>`
       + `<td><b>${esc(g.name)}</b><br/><span class="muted" style="font-size:12px">${esc(g.side)} • ${esc(g.contact)}${g.message?" • “"+esc(g.message)+"”":""}</span></td>
@@ -162,7 +182,12 @@ function render(){
         if(!confirm(`Reset ${g.name} (${g.code}) to pending?`)) return;
         try{
           await window.gasPost({ action: "upsert", guest: { ...g, status: "pending", companions: [], message: "" } });
-          await refresh();
+          // Optimistic: update the local cache instantly, revalidate in background
+          // instead of blocking on a full Sheet re-download.
+          const i = cache.findIndex(x=>normCode(x.code)===normCode(g.code));
+          if(i>=0){ cache[i] = {...cache[i], status:"pending", companions:[], message:""}; try{ localStorage.setItem(LS_KEY, JSON.stringify(cache)); }catch{} }
+          render();
+          refresh();
         }catch(e){ alert("Reset failed: " + (e.message||e)); }
         return;
       }
@@ -175,14 +200,29 @@ function render(){
       if(useGas()){
         try{
           await window.gasPost({ action: "delete", code: g.code });
-          await refresh();
+          // Optimistic: drop the row locally, revalidate in background.
+          cache = cache.filter(x=>normCode(x.code)!==normCode(g.code));
+          try{ localStorage.setItem(LS_KEY, JSON.stringify(cache)); }catch{}
+          render();
+          refresh();
         }catch(e){ alert("Delete failed: " + (e.message||e)); }
         return;
       }
       const next=loadGuests().filter(x=>normCode(x.code)!==normCode(g.code)); save(next); cache=next; render();
     });
-    rows.appendChild(tr);
+    frag.appendChild(tr);
   });
+  rows.appendChild(frag);
+  if(filtered.length > shown.length){
+    const tr=document.createElement("tr");
+    const td=document.createElement("td");
+    td.colSpan=8; td.className="muted"; td.style.textAlign="center";
+    td.textContent=`Showing ${shown.length} of ${filtered.length} — refine search or `;
+    const b=document.createElement("button");
+    b.className="btn small ghost"; b.textContent="Show all";
+    b.onclick=showAllRows; td.appendChild(b);
+    tr.appendChild(td); rows.appendChild(tr);
+  }
 }
 // ---- Add / Edit guest (CODE is the key) — mirrors all 9 sheet columns ----
 let editingCode = null;
@@ -262,7 +302,15 @@ document.getElementById("mSave").onclick = async ()=>{
         : { code, name, pax, side, table, status, companions, contact, message };
       const res = await window.gasPost({ action: "upsert", guest });
       if(!res || !res.ok) throw new Error((res && res.error) || "save failed");
-      closeModal(); await refresh();
+      // Optimistic: apply to the local cache instantly, revalidate in background.
+      if(existing){
+        const i = cache.findIndex(x=>normCode(x.code)===normCode(editingCode));
+        if(i>=0) cache[i] = guest;
+      } else {
+        cache.push(guest);
+      }
+      try{ localStorage.setItem(LS_KEY, JSON.stringify(cache)); }catch{}
+      closeModal(); render(); refresh();
     }catch(e){
       msg.innerHTML = `<div class="error">Save failed: ${String(e.message||e)}</div>`;
     }finally{
