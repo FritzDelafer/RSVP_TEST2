@@ -71,7 +71,7 @@ h2.rs{font-family:"Cormorant Garamond",serif;font-size:clamp(38px,6vw,64px);lett
 .muted{color:var(--muted)}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 label{font-weight:600;font-size:14px;display:block;margin:14px 0 6px;color:var(--wine)}
-input,select,textarea{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:15px;font-family:inherit}
+input,select,textarea{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:16px;font-family:inherit}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--blush);border-color:var(--wine)}
 .code-input{font-size:20px !important;letter-spacing:2px;text-transform:uppercase;font-weight:700;text-align:center}
 .demo-codes{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -102,3 +102,24 @@ footer{padding:40px 0 60px;text-align:center;color:var(--muted);font-size:13px}
 .gate-row .btn{flex:1;white-space:nowrap}
 .suggest-btn{display:block;width:100%;text-align:left;margin-top:8px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:13px 14px;cursor:pointer;font-weight:600;font-size:16px;color:var(--wine);font-family:inherit}
 .suggest-btn:hover{border-color:var(--wine);background:#fdf6ee}
+
+/* mobile optimizations */
+@media(max-width:480px){
+  .wrap{padding:0 14px}
+  .brand-logo{height:38px}
+  .nav-inner{padding:10px 14px}
+  .gate-card{margin:20px auto;padding:22px 18px}
+  .gate-title{font-size:clamp(36px,11vw,48px)}
+  .gate-row{flex-direction:column;align-items:stretch}
+  .gate-row input{flex:none;width:100%;min-width:0;min-height:48px;text-align:center}
+  .gate-row .btn{width:100%;min-height:48px;flex:none}
+  .sheet{border-radius:14px}
+  #rsvp .sheet{padding:18px 16px !important}
+  .attend-row{flex-direction:column;align-items:stretch;gap:8px}
+  .attend-row label{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin:0;min-height:52px;cursor:pointer;font-size:16px}
+  .attend-row label:has(input:checked){border-color:var(--wine);background:#fdf6ee}
+  .attend-row input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--wine)}
+  .action-row{flex-direction:column;align-items:stretch}
+  .action-row .btn{width:100%;min-height:48px;text-align:center}
+  footer{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+}

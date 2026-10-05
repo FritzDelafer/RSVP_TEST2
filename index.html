@@ -28,7 +28,7 @@
       <p class="muted" style="text-align:center;margin-top:0">For invited guests only — enter the code from your invitation.<br/>Big or small letters, both work.</p>
       <label for="guestCode">Your Invitation Code</label>
       <div class="row gate-row">
-        <input id="guestCode" placeholder="e.g. CF4K7P" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" />
+        <input id="guestCode" placeholder="e.g. CF4K7P" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" enterkeyhint="go" inputmode="text" style="text-transform:uppercase" />
         <button class="btn" id="lookupBtn">Find My Invitation</button>
       </div>
       <div id="nameMsg"></div>
@@ -45,20 +45,20 @@
       <div id="step-form" style="display:none">
         <div class="notice" id="guestInfo"></div>
         <label>Will you attend?</label>
-        <div class="row">
-          <label style="font-weight:500"><input type="radio" name="attend" value="yes" checked style="width:auto" /> Joyfully Accepts</label>
-          <label style="font-weight:500"><input type="radio" name="attend" value="no" style="width:auto" /> Regretfully Declines</label>
+        <div class="row attend-row">
+          <label style="font-weight:500"><input type="radio" name="attend" value="yes" checked /> Joyfully Accepts</label>
+          <label style="font-weight:500"><input type="radio" name="attend" value="no" /> Regretfully Declines</label>
         </div>
         <div id="attendFields">
           <label for="count">How many seats will you use? (max <span id="maxPax">1</span>)</label>
           <select id="count"></select>
           <div id="companions"></div>
           <label for="contact">Mobile / Email (for updates)</label>
-          <input id="contact" placeholder="0917-xxx-xxxx" />
+          <input id="contact" placeholder="0917-xxx-xxxx" inputmode="tel" autocomplete="tel" enterkeyhint="done" />
           <label for="message">Message to couple (optional)</label>
           <textarea id="message" rows="3" placeholder="So excited to celebrate with you!"></textarea>
         </div>
-        <div class="row" style="margin-top:16px">
+        <div class="row action-row" style="margin-top:16px">
           <button class="btn" id="submitBtn">Submit RSVP</button>
           <button class="btn ghost" id="backBtn">Not you? Search again</button>
         </div>
@@ -67,7 +67,7 @@
 
       <div id="step-done" style="display:none">
         <div class="success" id="doneBox"></div>
-        <div class="row" style="margin-top:16px;justify-content:center">
+        <div class="row action-row" style="margin-top:16px;justify-content:center">
           <a class="btn" id="continueBtn" href="https://jebscer16.my.canva.site/jess-ara-wedding/" target="_blank" rel="noopener">Continue to Invitation →</a>
         </div>
         <div class="sheet" style="margin-top:16px;max-width:560px;margin-left:auto;margin-right:auto">
