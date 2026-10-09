@@ -7,9 +7,13 @@
  * 3. In the SHEET tab "GuestList": make sure row 1 has a CODE column.
  *    Easiest: insert a new column A, put "CODE" in A1, and fill one code
  *    per guest (e.g. CF4K7P). Canonical order:
- *    CODE | NAME | PAX | SIDE | TABLE | STATUS | COMPANIONS | CONTACT | MESSAGE
+ *    CODE | NAME | PAX | SIDE | TABLE | STATUS | COMPANIONS | CONTACT | MESSAGE | CHECKIN
  *    (Column order is flexible — the script maps by header name. Codes are
  *    matched case-insensitively, spaces ignored.)
+ *    CHECKIN: per-head check-in flags for the table manager. Canonical form
+ *    is comma-separated 1/0 in planned-heads order (e.g. "1,0,1" = head 1+3
+ *    checked in). A plain integer N ("2") means first N heads checked.
+ *    Empty = nobody checked in. Added automatically by setup().
  * 4. Pick function "setup" → Run once → authorize. This adds any missing
  *    headers without touching your data.
  * 5. Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone)
@@ -17,17 +21,19 @@
  *    (Redeploy → New version after every Code.gs change.)
  *
  * Sheet tab: "GuestList"
- * Columns (9): CODE | NAME | SIDE... (see HEADERS below)
+ * Columns (10): CODE | NAME | SIDE... (see HEADERS below)
  * - CODE is the key. Lookup is code-only (no name suggestions — names can't
  *   be enumerated). STATUS accepts Attending/Confirmed/Yes (=attending),
  *   Declined/No (=declined), anything else (=pending). Stored as Attending/Declined/Pending.
  * - COMPANIONS: one or more names joined with "; " (e.g. "Juan; Maria").
+ * - CHECKIN: per-head flags "1,0,1" (see above). Written by the table manager
+ *   via action=checkin; preserved by rsvp/upsert unless explicitly supplied.
  * - Seats used = 1 + companions count when Attending, 0 when Declined.
- * - If ADMIN_KEY below is set, list/upsert/delete require ?key= or body.key to match.
+ * - If ADMIN_KEY below is set, list/upsert/delete/checkin require ?key= or body.key to match.
  */
 
 const TAB_NAME = "GuestList";
-const HEADERS = ["CODE","NAME","PAX","SIDE","TABLE","STATUS","COMPANIONS","CONTACT","MESSAGE"];
+const HEADERS = ["CODE","NAME","PAX","SIDE","TABLE","STATUS","COMPANIONS","CONTACT","MESSAGE","CHECKIN"];
 const ADMIN_KEY = ""; // optional: set e.g. "ja-secret-2026", then admin calls must send it
 
 function norm_(s){ return String(s == null ? "" : s).toLowerCase().trim().replace(/\s+/g, " "); }
@@ -62,6 +68,39 @@ function joinCompanions_(arr){
   return (arr || []).map(c=>String(c).trim()).filter(Boolean).join("; ");
 }
 
+// CHECKIN helpers: canonical form is "1,0,1" (per-head flags in
+// planned-heads order). Parse is tolerant for manual Sheet edits:
+// "1"/"x"/"✓"/"yes"/"true" = checked; "0"/"-"/"no"/"" = not checked;
+// a plain integer N = first N heads checked; other text ignored.
+function parseCheckin_(v){
+  if(Array.isArray(v)) return v.map(x=>!!x);
+  const s = String(v == null ? "" : v).trim();
+  if(!s) return [];
+  if(/^\d+$/.test(s)){
+    // careful: "101" is ambiguous (flags vs count). Treat single digit as
+    // count, multi-digit all-0/1 strings as flags, else count.
+    if(s.length === 1) {
+      const n = parseInt(s, 10);
+      const out = [];
+      for(let i = 0; i < n; i++) out.push(true);
+      return out;
+    }
+    if(/^[01]+$/.test(s)) return s.split("").map(c=>c === "1");
+  }
+  return s.split(/[;,\s\n]+/).map(c=>{
+    const n = c.trim().toLowerCase();
+    return n === "1" || n === "x" || n === "✓" || n === "yes" || n === "true" || n === "checked" || n === "in";
+  });
+}
+function joinCheckin_(arr){
+  if(!arr || !arr.length) return "";
+  // trim trailing unchecked so "0,0,0" stores as "" (nobody checked in)
+  let end = arr.length;
+  while(end > 0 && !arr[end - 1]) end--;
+  if(end === 0) return "";
+  return arr.slice(0, end).map(x=>x ? "1" : "0").join(",");
+}
+
 function readStatus_(s){
   const n = norm_(s);
   if(n === "attending" || n === "confirmed" || n === "confirm" || n === "yes" || n === "attends") return "attending";
@@ -86,7 +125,8 @@ function rowToGuest_(map, vals){
     status: readStatus_(at("STATUS")),
     companions: parseCompanions_(at("COMPANIONS")),
     contact: String(at("CONTACT") || "").trim(),
-    message: String(at("MESSAGE") || "").trim()
+    message: String(at("MESSAGE") || "").trim(),
+    checkin: parseCheckin_(at("CHECKIN"))
   };
 }
 
@@ -235,17 +275,29 @@ function doPost(e){
       }
       row[map.CONTACT] = String(body.contact || "").trim();
       row[map.MESSAGE] = String(body.message || "").trim();
+      // CHECKIN untouched here: guest RSVPs never clear door check-ins.
       sh.getRange(r, 1, 1, width).setValues([row]);
       SpreadsheetApp.flush();
       return out_({ ok:true });
     }
 
-    if(action === "upsert" || action === "delete"){
+    if(action === "upsert" || action === "delete" || action === "checkin"){
       if(!checkAdmin_(body.key)) return out_({ ok:false, error:"bad key" });
       const sh = sheet_();
       const map = colMap_(sh);
       const code = (body.guest && body.guest.code) || body.code || "";
       const r = findRow_(sh, map, code);
+      if(action === "checkin"){
+        // Fast per-head check-in write from the table manager:
+        // { action:"checkin", code:"CF4K7P", checkin:[true,false,true] }
+        // or { action:"checkin", code, checkin:"1,0,1" } or { checkin:"2" }.
+        if(r < 0) return out_({ ok:false, error:"code not on list" });
+        if(map.CHECKIN < 0) return out_({ ok:false, error:"CHECKIN column missing" });
+        const flags = parseCheckin_(body.checkin !== undefined ? body.checkin : (body.guest && body.guest.checkin));
+        setCell_(sh, r, map, "CHECKIN", joinCheckin_(flags));
+        SpreadsheetApp.flush();
+        return out_({ ok:true, checkin: joinCheckin_(flags) });
+      }
       if(action === "delete"){
         if(r > 0) sh.deleteRow(r);
         else if(body.name || (body.guest && body.guest.name)){
@@ -256,6 +308,9 @@ function doPost(e){
         return out_({ ok:true });
       }
       const g = body.guest || {};
+      // CHECKIN: preserve the Sheet value when the caller doesn't send it
+      // (old admin clients send 9 fields). Explicit send overwrites.
+      const hasCheckin = g.checkin !== undefined;
       const vals = {
         CODE: String(g.code || "").toUpperCase().replace(/[^A-Z0-9]/g, ""),
         NAME: String(g.name || "").trim(),
@@ -265,7 +320,8 @@ function doPost(e){
         STATUS: writeStatus_(g.status),
         COMPANIONS: joinCompanions_(parseCompanions_(g.companions)),
         CONTACT: String(g.contact || ""),
-        MESSAGE: String(g.message || "")
+        MESSAGE: String(g.message || ""),
+        CHECKIN: hasCheckin ? joinCheckin_(parseCheckin_(g.checkin)) : null
       };
       if(!vals.CODE) return out_({ ok:false, error:"code required" });
       if(!vals.NAME) return out_({ ok:false, error:"name required" });
@@ -273,17 +329,22 @@ function doPost(e){
         // One batched write by column position — safe even if sheet order differs.
         const width = Math.max(sh.getLastColumn(), HEADERS.length);
         const row = sh.getRange(r, 1, 1, width).getDisplayValues()[0];
-        HEADERS.forEach(h => { if(map[h] >= 0) row[map[h]] = vals[h]; });
+        HEADERS.forEach(h => {
+          if(map[h] < 0) return;
+          if(h === "CHECKIN" && !hasCheckin) return; // preserve existing flags
+          row[map[h]] = vals[h];
+        });
         sh.getRange(r, 1, 1, width).setValues([row]);
       } else {
         // append in canonical order
+        if(!hasCheckin) vals.CHECKIN = "";
         sh.appendRow(HEADERS.map(h => vals[h]));
       }
       SpreadsheetApp.flush();
       return out_({ ok:true });
     }
 
-    return out_({ ok:false, error:"unknown action. Use action=rsvp|upsert|delete" });
+    return out_({ ok:false, error:"unknown action. Use action=rsvp|upsert|delete|checkin" });
   } catch(err){
     return out_({ ok:false, error:String(err) });
   } finally {
